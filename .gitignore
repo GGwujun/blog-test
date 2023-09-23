@@ -9,6 +9,3 @@ node_modules
 .dumi
 
 yarn.lock
-
-ssrc
-public/images

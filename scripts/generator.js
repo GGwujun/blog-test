@@ -10,7 +10,11 @@ let request = require('request')
 
 
 const isDev = process.argv.slice(2) && process.argv.slice(2).includes("DEBUG");
-
+const sleep = function (time) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, time)
+  })
+}
 
 const downloadImage = (src, dest) => {
   return new Promise((resolve, reject) => {
@@ -66,23 +70,13 @@ const createDocDir = function (book) {
   if (!fs.existsSync('public')) {
     fs.mkdirSync('public');
   }
-
-  const ImageDoc = 'public/images'
-  if (!fs.existsSync(ImageDoc)) {
-    fs.mkdirSync(ImageDoc);
-  }
 };
 
 const createRepoDir = function (book) {
   const repoDir = `ssrc/${book.title}`;
-  const imageDir = `public/images/${book.title}`;
 
   if (!fs.existsSync(repoDir)) {
     fs.mkdirSync(repoDir);
-  }
-
-  if (!fs.existsSync(imageDir)) {
-    fs.mkdirSync(imageDir);
   }
 };
 
@@ -133,7 +127,6 @@ const createSummary = function (book) {
 
 const createDocs = async function (book) {
   const bookDir = `ssrc/${book.title}`;
-  const imageDir = `public/images/${book.title}`;
   logger.log(chalk.green(`create book: ${book.title}`));
 
   for (let index = 0; index < book.data.length; index++) {
@@ -141,7 +134,7 @@ const createDocs = async function (book) {
     if (!chapter.chapterTitle) {
       const articleDir = `${bookDir}/${rmTrin(chapter.article_title)}`;
       var sitdown = new Sitdown({
-        assetsPublicPath: `/images/${book.title}`
+        assetsPublicPath: `.`
       });
       logger.log(chalk.white(`  create book article:${chapter.article_title}`));
       const mdContent = `---
@@ -150,18 +143,14 @@ date: "2019-06-23"
       
 # ${chapter.article_title}\n${sitdown.HTMLToMD(chapter.content)}`;
       fs.writeFileSync(`${articleDir}.md`, mdContent);
-      fs.writeFileSync(`${imageDir}/images.json`, sitdown.service.mdImages)
     } else {
       const dir = rmTrin(chapter.chapterTitle);
       const chapterDir = `${bookDir}/${getList(index)}.${dir}`;
-      const chapterImageDir = `${imageDir}/${getList(index)}.${dir}`;
 
       if (!fs.existsSync(chapterDir)) {
         fs.mkdirSync(chapterDir);
       }
-      if (!fs.existsSync(chapterImageDir)) {
-        fs.mkdirSync(chapterImageDir);
-      }
+
 
       logger.log(chalk.yellow(`  create book chapter:${chapter.chapterTitle}`));
 
@@ -171,7 +160,7 @@ date: "2019-06-23"
           chalk.white(`    create book article:${article.article_title}`)
         );
         var sitdown = new Sitdown({
-          assetsPublicPath:  `/images/${book.title}/${getList(index)}.${dir}`
+          assetsPublicPath: `.`
         });
         const mdContent = `---
 date: "2019-06-23"
@@ -182,16 +171,18 @@ date: "2019-06-23"
         fs.writeFileSync(`${chapterDir}/${getList(i)}.md`, mdContent);
         if (sitdown.service.mdImages && sitdown.service.mdImages.length) {
           for (let index = 0; index < sitdown.service.mdImages.length; index++) {
-            const img = sitdown.service.mdImages[index];
-            const imgNoOrigin = img.split("?")[0].match(domainPattern);
-            const dest = imgNoOrigin[2].replace(/\//g, "")
             try {
-              await downloadImage(img, `${chapterImageDir}/${dest}`)
+              const img = sitdown.service.mdImages[index];
+              const imgNoOrigin = img.split("?")[0].match(domainPattern);
+              if (imgNoOrigin) {
+                const dest = imgNoOrigin[1].replace(/\./g, "").replace(/\:/g, "").replace(/\//g, "") + imgNoOrigin[2].replace(/\//g, "")
+                await sleep(3000)
+                await downloadImage(img, `${chapterDir}/${dest}`)
+              }
             } catch (error) {
               console.log(error);
             }
           }
-          fs.writeFileSync(`${chapterImageDir}/${getList(i)}-images.json`, JSON.stringify(sitdown.service.mdImages))
         }
       }
     }
@@ -205,9 +196,6 @@ date: "2019-06-23"
 
 const clearDocs = function () {
   rimraf.sync(path.resolve(process.cwd(), "ssrc/*"), {
-    glob: true,
-  });
-  rimraf.sync(path.resolve(process.cwd(), "public/images/*"), {
     glob: true,
   });
 };
